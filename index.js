@@ -121,6 +121,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                             else {
                                 let leaderMeta = participantMetaMap.get(leaderNode);
                                 if (!leaderMeta) {
+                                    console.log(`未找到leader节点(${leaderNode})的元信息，将从zookeeper拉取数据...`);
                                     await new Promise(resolve => {
                                         client.getData(`${barrierPath}/${leaderNode}`, (err, data) => {
                                             if (!err) {
@@ -132,7 +133,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                                     });
                                     leaderMeta = participantMetaMap.get(leaderNode);
                                 }
-                                console.log('字典序最小节点（leader）的元信息:', leaderMeta);
+                                console.log(`leader节点(${leaderNode})的元信息:`, leaderMeta);
                             }
                         }
                         if (children.length < participantCount) {
