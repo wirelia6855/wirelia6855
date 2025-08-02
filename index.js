@@ -87,16 +87,14 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         const added = children.filter(child => !lastChildren.includes(child));
                         lastChildren = children;
                         if (added.length > 0 && participantValue != null) {
-                            // 只让ID最小的节点去getData和统计
                             const fullCreatedNode = createdPath.split('/').pop();
-                            const sortedChildren = [...children].sort(); // 字典序最小
+                            const sortedChildren = [...children].sort();
                             const leaderNode = sortedChildren[0];
                             if (fullCreatedNode === leaderNode) {
                                 const startGet = Date.now();
                                 await Promise.all(added.map(child => {
-                                    const fullPath = `${barrierPath}/${child}`;
                                     return new Promise(resolve => {
-                                        client.getData(fullPath, (err, data) => {
+                                        client.getData(`${barrierPath}/${child}`, (err, data) => {
                                             if (!err) {
                                                 const meta = JSON.parse(data.toString());
                                                 participantMetaMap.set(child, meta);
@@ -121,7 +119,19 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                                 console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                             }
                             else {
-                                const leaderMeta = participantMetaMap.get(leaderNode);
+                                let leaderMeta = participantMetaMap.get(leaderNode);
+                                if (!leaderMeta) {
+                                    await new Promise(resolve => {
+                                        client.getData(`${barrierPath}/${leaderNode}`, (err, data) => {
+                                            if (!err) {
+                                                const meta = JSON.parse(data.toString());
+                                                participantMetaMap.set(leaderNode, meta);
+                                            }
+                                            resolve();
+                                        });
+                                    });
+                                    leaderMeta = participantMetaMap.get(leaderNode);
+                                }
                                 console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                             }
                         }
