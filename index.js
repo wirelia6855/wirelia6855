@@ -78,12 +78,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                     // 如果屏障已经通过，不再执行
                     if (barrierPassed)
                         return;
-                    client.getChildren(barrierPath, (event) => {
-                        // 屏障没通过时才监听
-                        if (!barrierPassed) {
-                            checkBarrier();
-                        }
-                    }, async (err, children) => {
+                    client.getChildren(barrierPath, (event) => { checkBarrier(); }, async (err, children) => {
                         if (err)
                             return reject(err);
                         if (barrierPassed)
@@ -95,39 +90,37 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         const fullCreatedNode = createdPath.split('/').pop();
                         const sortedChildren = [...children].sort(); // 字典序最小
                         const leaderNode = sortedChildren[0];
-                        if (fullCreatedNode === leaderNode) {
-                            if (participantValue != null && added.length > 0) {
-                                const startGet = Date.now();
-                                await Promise.all(added.map(child => {
-                                    const fullPath = `${barrierPath}/${child}`;
-                                    return new Promise(resolve => {
-                                        client.getData(fullPath, (err, data) => {
-                                            if (!err) {
-                                                const meta = JSON.parse(data.toString());
-                                                participantMetaMap.set(child, meta);
-                                            }
-                                            resolve();
-                                        });
+                        if (fullCreatedNode === leaderNode && added.length > 0 && participantValue != null) {
+                            const startGet = Date.now();
+                            await Promise.all(added.map(child => {
+                                const fullPath = `${barrierPath}/${child}`;
+                                return new Promise(resolve => {
+                                    client.getData(fullPath, (err, data) => {
+                                        if (!err) {
+                                            const meta = JSON.parse(data.toString());
+                                            participantMetaMap.set(child, meta);
+                                        }
+                                        resolve();
                                     });
-                                }));
-                                const leaderMeta = participantMetaMap.get(leaderNode);
-                                console.log('字典序最小节点（leader）的元信息:', leaderMeta);
-                                // 统计所有已知节点的数值
-                                const allValues = children.map(child => participantMetaMap.get(child)?.participantValue).filter(Boolean);
-                                const max = _.max(allValues);
-                                const min = _.min(allValues);
-                                const avg = _.mean(allValues);
-                                console.log('当前节点总数:', allValues.length);
-                                console.log(`最大值: ${max}, 最小值: ${min}, 平均值: ${avg}`);
-                                // 打印新增节点及其数值
-                                for (const child of added) {
-                                    const val = participantMetaMap.get(child);
-                                    console.log('新增节点 id:', child, '元信息:', val);
-                                }
-                                console.log('新增节点总数:', added.length);
-                                console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
+                                });
+                            }));
+                            // 统计所有已知节点的数值
+                            const allValues = children.map(child => participantMetaMap.get(child)?.participantValue).filter(Boolean);
+                            const max = _.max(allValues);
+                            const min = _.min(allValues);
+                            const avg = _.mean(allValues);
+                            console.log('当前节点总数:', allValues.length);
+                            console.log(`最大值: ${max}, 最小值: ${min}, 平均值: ${avg}`);
+                            // 打印新增节点及其数值
+                            for (const child of added) {
+                                const val = participantMetaMap.get(child);
+                                console.log('新增节点 id:', child, '元信息:', val);
                             }
+                            console.log('新增节点总数:', added.length);
+                            console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                         }
+                        const leaderMeta = participantMetaMap.get(leaderNode);
+                        console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                         if (children.length < participantCount) {
                             console.log(barrierPath, `等待中，当前已就绪: ${children.length} / ${participantCount}`);
                             return;
