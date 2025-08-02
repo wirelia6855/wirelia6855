@@ -118,9 +118,9 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                             }
                             console.log('新增节点总数:', added.length);
                             console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
+                            const leaderMeta = participantMetaMap.get(leaderNode);
+                            console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                         }
-                        const leaderMeta = participantMetaMap.get(leaderNode);
-                        console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                         if (children.length < participantCount) {
                             console.log(barrierPath, `等待中，当前已就绪: ${children.length} / ${participantCount}`);
                             return;
