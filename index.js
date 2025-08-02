@@ -2,6 +2,7 @@ import * as zookeeper from 'node-zookeeper-client';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import _ from 'lodash';
+import Utility from './Utility';
 const argv = await yargs(hideBin(process.argv))
     .option('zk', {
     alias: 'zookeeper',
@@ -71,9 +72,11 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
             client.create(nodePath, Buffer.from(JSON.stringify({ repository: process.env.GITHUB_REPOSITORY, participantValue })), zookeeper.CreateMode.EPHEMERAL_SEQUENTIAL, (err, createdPath) => {
                 if (err)
                     return reject(err);
+                const fullCreatedNode = createdPath.split('/').pop();
                 let lastChildren = [];
                 const participantMetaMap = new Map();
                 let barrierPassed = false;
+                let leaderNode;
                 function checkBarrier() {
                     // 如果屏障已经通过，不再执行
                     if (barrierPassed)
@@ -87,10 +90,11 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         const added = children.filter(child => !lastChildren.includes(child));
                         lastChildren = children;
                         if (added.length > 0 && participantValue != null) {
-                            const fullCreatedNode = createdPath.split('/').pop();
-                            const sortedChildren = [...children].sort();
-                            const leaderNode = sortedChildren[0];
-                            if (fullCreatedNode === leaderNode) {
+                            if (!leaderNode) {
+                                const sortedChildren = [...children].sort();
+                                leaderNode = sortedChildren[0];
+                            }
+                            if (fullCreatedNode == leaderNode) {
                                 const startGet = Date.now();
                                 await Promise.all(added.map(child => {
                                     return new Promise(resolve => {
@@ -140,9 +144,10 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                             console.log(barrierPath, `等待中，当前已就绪: ${children.length} / ${participantCount}`);
                             return;
                         }
-                        barrierPassed = true; // 标记屏障已通过
+                        barrierPassed = true;
                         console.log('屏障已通过！所有参与者已就绪。');
                         console.log(`屏障耗时: ${((Date.now() - startTime) / 1000).toFixed(1)} 秒`);
+                        fullCreatedNode == leaderNode && Utility.appendStepSummary(leaderNode);
                         resolve();
                     });
                 }
