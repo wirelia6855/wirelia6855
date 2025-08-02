@@ -68,12 +68,12 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                 return reject(err);
             // 每个参与者创建自己的临时子节点
             const nodePath = `${barrierPath}/participant-`;
-            client.create(nodePath, participantValue && Buffer.from(participantValue.toString()), zookeeper.CreateMode.EPHEMERAL_SEQUENTIAL, (err, createdPath) => {
+            client.create(nodePath, Buffer.from(JSON.stringify({ repository: process.env.GITHUB_REPOSITORY, participantValue })), zookeeper.CreateMode.EPHEMERAL_SEQUENTIAL, (err, createdPath) => {
                 if (err)
                     return reject(err);
                 let lastChildren = [];
-                const nodeValueCache = new Map();
-                let barrierPassed = false; // 关键：标记屏障是否通过
+                const participantMetaMap = new Map();
+                let barrierPassed = false;
                 function checkBarrier() {
                     // 如果屏障已经通过，不再执行
                     if (barrierPassed)
@@ -94,22 +94,26 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         // 只让ID最小的节点去getData和统计
                         const fullCreatedNode = createdPath.split('/').pop();
                         const sortedChildren = [...children].sort(); // 字典序最小
-                        if (fullCreatedNode === sortedChildren[0]) {
+                        const leaderNode = sortedChildren[0];
+                        const leaderMeta = participantMetaMap.get(leaderNode);
+                        console.log('字典序最小节点（leader）的元信息:', leaderMeta);
+                        if (fullCreatedNode === leaderNode) {
                             if (participantValue != null && added.length > 0) {
                                 const startGet = Date.now();
                                 await Promise.all(added.map(child => {
                                     const fullPath = `${barrierPath}/${child}`;
-                                    return new Promise(resolve2 => {
+                                    return new Promise(resolve => {
                                         client.getData(fullPath, (err, data) => {
-                                            if (!err && data) {
-                                                nodeValueCache.set(child, Number(data.toString()));
+                                            if (!err) {
+                                                const meta = JSON.parse(data.toString());
+                                                participantMetaMap.set(child, meta);
                                             }
-                                            resolve2();
+                                            resolve();
                                         });
                                     });
                                 }));
                                 // 统计所有已知节点的数值
-                                const allValues = children.map(child => nodeValueCache.get(child)).filter(Boolean);
+                                const allValues = children.map(child => participantMetaMap.get(child)?.participantValue).filter(Boolean);
                                 const max = _.max(allValues);
                                 const min = _.min(allValues);
                                 const avg = _.mean(allValues);
@@ -117,24 +121,21 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                                 console.log(`最大值: ${max}, 最小值: ${min}, 平均值: ${avg}`);
                                 // 打印新增节点及其数值
                                 for (const child of added) {
-                                    const val = nodeValueCache.get(child);
-                                    console.log('新增节点 id:', child, '数值:', val);
+                                    const val = participantMetaMap.get(child);
+                                    console.log('新增节点 id:', child, '元信息:', val);
                                 }
                                 console.log('新增节点总数:', added.length);
                                 console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                             }
                         }
-                        if (children.length >= participantCount) {
-                            barrierPassed = true; // 标记屏障已通过
-                            console.log('屏障已通过！所有参与者已就绪。');
-                            console.log(`屏障耗时: ${((Date.now() - startTime) / 1000).toFixed(1)} 秒`);
-                            resolve(); // 只 resolve 一次
-                            // 注意：不再 checkBarrier，也不再监听
-                        }
-                        else {
+                        if (children.length < participantCount) {
                             console.log(barrierPath, `等待中，当前已就绪: ${children.length} / ${participantCount}`);
-                            // 屏障未通过，继续监听
+                            return;
                         }
+                        barrierPassed = true; // 标记屏障已通过
+                        console.log('屏障已通过！所有参与者已就绪。');
+                        console.log(`屏障耗时: ${((Date.now() - startTime) / 1000).toFixed(1)} 秒`);
+                        resolve();
                     });
                 }
                 checkBarrier();
