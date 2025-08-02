@@ -1,14 +1,7 @@
-import fs from 'fs';
 import * as zookeeper from 'node-zookeeper-client';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import _ from 'lodash';
-function appendStepSummary(data) {
-    const { GITHUB_STEP_SUMMARY } = process.env;
-    data = typeof data == "string" ? data : JSON.stringify(data, null, 4);
-    GITHUB_STEP_SUMMARY && fs.appendFileSync(GITHUB_STEP_SUMMARY, data + "\n");
-    console.log(data);
-}
 const argv = await yargs(hideBin(process.argv))
     .option('zk', {
     alias: 'zookeeper',
@@ -153,7 +146,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         barrierPassed = true;
                         console.log('屏障已通过！所有参与者已就绪。');
                         console.log(`屏障耗时: ${((Date.now() - startTime) / 1000).toFixed(1)} 秒`);
-                        fullCreatedNode == leaderNode && appendStepSummary(leaderNode);
+                        fullCreatedNode == leaderNode && console.log("::notice::" + leaderNode);
                         resolve();
                     });
                 }
