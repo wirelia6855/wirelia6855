@@ -90,6 +90,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         const fullCreatedNode = createdPath.split('/').pop();
                         const sortedChildren = [...children].sort(); // 字典序最小
                         const leaderNode = sortedChildren[0];
+                        console.log({fullCreatedNode, leaderNode});
                         if (fullCreatedNode === leaderNode && added.length > 0 && participantValue != null) {
                             const startGet = Date.now();
                             await Promise.all(added.map(child => {
