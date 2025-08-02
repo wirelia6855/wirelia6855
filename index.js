@@ -2,7 +2,7 @@ import * as zookeeper from 'node-zookeeper-client';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import _ from 'lodash';
-import Utility from './Utility';
+import Utility from './Utility.js';
 const argv = await yargs(hideBin(process.argv))
     .option('zk', {
     alias: 'zookeeper',
