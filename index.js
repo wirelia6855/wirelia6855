@@ -87,38 +87,42 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         if (err)
                             return reject(err);
                         if (barrierPassed)
-                            return; // 再次防护
+                            return;
                         // 找出新增节点
                         const added = children.filter(child => !lastChildren.includes(child));
                         lastChildren = children;
-                        // 只对新增节点 getData
-                        if (participantValue != null && added.length > 0) {
-                            const startGet = Date.now();
-                            await Promise.all(added.map(child => {
-                                const fullPath = `${barrierPath}/${child}`;
-                                return new Promise(resolve2 => {
-                                    client.getData(fullPath, (err, data) => {
-                                        if (!err && data) {
-                                            nodeValueCache.set(child, Number(data.toString()));
-                                        }
-                                        resolve2();
+                        // 只让ID最小的节点去getData和统计
+                        const fullCreatedNode = createdPath.split('/').pop();
+                        const sortedChildren = [...children].sort(); // 字典序最小
+                        if (fullCreatedNode === sortedChildren[0]) {
+                            if (participantValue != null && added.length > 0) {
+                                const startGet = Date.now();
+                                await Promise.all(added.map(child => {
+                                    const fullPath = `${barrierPath}/${child}`;
+                                    return new Promise(resolve2 => {
+                                        client.getData(fullPath, (err, data) => {
+                                            if (!err && data) {
+                                                nodeValueCache.set(child, Number(data.toString()));
+                                            }
+                                            resolve2();
+                                        });
                                     });
-                                });
-                            }));
-                            // 统计所有已知节点的数值
-                            const allValues = children.map(child => nodeValueCache.get(child)).filter(Boolean);
-                            const max = _.max(allValues);
-                            const min = _.min(allValues);
-                            const avg = _.mean(allValues);
-                            console.log('当前节点总数:', allValues.length);
-                            console.log(`最大值: ${max}, 最小值: ${min}, 平均值: ${avg}`);
-                            // 打印新增节点及其数值
-                            for (const child of added) {
-                                const val = nodeValueCache.get(child);
-                                console.log('新增节点 id:', child, '数值:', val);
+                                }));
+                                // 统计所有已知节点的数值
+                                const allValues = children.map(child => nodeValueCache.get(child)).filter(Boolean);
+                                const max = _.max(allValues);
+                                const min = _.min(allValues);
+                                const avg = _.mean(allValues);
+                                console.log('当前节点总数:', allValues.length);
+                                console.log(`最大值: ${max}, 最小值: ${min}, 平均值: ${avg}`);
+                                // 打印新增节点及其数值
+                                for (const child of added) {
+                                    const val = nodeValueCache.get(child);
+                                    console.log('新增节点 id:', child, '数值:', val);
+                                }
+                                console.log('新增节点总数:', added.length);
+                                console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                             }
-                            console.log('新增节点总数:', added.length);
-                            console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                         }
                         if (children.length >= participantCount) {
                             barrierPassed = true; // 标记屏障已通过
