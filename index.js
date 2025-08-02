@@ -95,8 +95,6 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                         const fullCreatedNode = createdPath.split('/').pop();
                         const sortedChildren = [...children].sort(); // 字典序最小
                         const leaderNode = sortedChildren[0];
-                        const leaderMeta = participantMetaMap.get(leaderNode);
-                        console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                         if (fullCreatedNode === leaderNode) {
                             if (participantValue != null && added.length > 0) {
                                 const startGet = Date.now();
@@ -112,6 +110,8 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                                         });
                                     });
                                 }));
+                                const leaderMeta = participantMetaMap.get(leaderNode);
+                                console.log('字典序最小节点（leader）的元信息:', leaderMeta);
                                 // 统计所有已知节点的数值
                                 const allValues = children.map(child => participantMetaMap.get(child)?.participantValue).filter(Boolean);
                                 const max = _.max(allValues);
