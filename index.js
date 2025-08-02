@@ -117,6 +117,7 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                                 const val = nodeValueCache.get(child);
                                 console.log('新增节点 id:', child, '数值:', val);
                             }
+                            console.log('新增节点总数:', added.length);
                             console.log(`本轮耗时: ${((Date.now() - startGet) / 1000).toFixed(1)} 秒`);
                         }
                         if (children.length >= participantCount) {
