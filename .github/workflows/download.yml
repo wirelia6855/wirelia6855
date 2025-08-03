@@ -1,0 +1,123 @@
+on:
+  push:
+    # paths:
+    #   - '.github/workflows/download.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: Asia/Shanghai
+  TASK_COUNT: 2000
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.set-matrix.outputs.ids }}
+      matrix_ready_at: ${{ steps.set-matrix.outputs.matrix_ready_at }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-matrix
+        run: |
+          count=20
+          ids=$(jq -c -n --argjson n "$count" '[range(1; $n+1)]')
+          # 输出 matrix 启动准备完成的时间
+          matrix_ready_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "ids=$ids" >> $GITHUB_OUTPUT
+          echo "matrix_ready_at=$matrix_ready_at" >> $GITHUB_OUTPUT
+
+  concurrent-jobs:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      max-parallel: 20
+      fail-fast: false
+      matrix:
+        job_id: ${{ fromJson(needs.prepare-matrix.outputs.ids) }}
+    steps:
+      - name: 检查队列等待时间
+        run: |
+          MATRIX_READY_AT="${{ needs.prepare-matrix.outputs.matrix_ready_at }}"
+          QUEUE_TIME=$(( $(date -u +%s) - $(date -d "$MATRIX_READY_AT" +%s) ))
+          echo "Queue time since matrix ready: $QUEUE_TIME seconds"
+          if [ "$QUEUE_TIME" -gt 180 ]; then
+            echo "::error::Queue time since matrix ready exceeded 180 seconds."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          repository: mirllan2025/express
+
+      - id: run-speed
+        name: 下载并统计速度
+        run: |
+          yarn
+          timeout 600s node index.js --count ${{env.TASK_COUNT}}
+          # 下载文件并获取速度（字节/秒）
+          # url=https://apt.mobileanjian.com/debs/old/com.cyjh.mobileanjian_1.8.1_default_iphoneos-arm.deb
+          # resolve=apt.mobileanjian.com:443:114.80.179.141
+          url=https://down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com/myt.ipa
+          resolve=down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com:443:117.68.24.87
+          result=$(curl -O "$url" -w "remote_ip: %{remote_ip}\nspeed_download: %{speed_download}\n" --resolve $resolve 2>/dev/null)
+          remote_ip=$(echo "$result" | grep "remote_ip" | awk '{print $2}')
+          speed=$(echo "$result" | grep "speed_download" | awk '{print $2}')
+          echo "remote_ip: $remote_ip"
+          echo "speed_download: $speed"
+          # 转换为 MB/s，保留两位小数
+          speed_mb=$(awk "BEGIN {printf \"%.2f\", $speed/1024/1024}")
+          echo "$speed_mb" > speed.txt
+          timeout 600s node index.js --count ${{env.TASK_COUNT}} --path /download --value $speed_mb
+
+      - name: 上传下载速度结果
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-${{ matrix.job_id }}
+          path: speed.txt
+
+  summarize:
+    needs: concurrent-jobs
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: 下载所有下载速度文件
+        uses: actions/download-artifact@v4
+        with:
+          path: speeds
+
+      - name: 汇总分析下载速度
+        run: |
+          # 合并所有下载速度
+          cat speeds/speed-*/speed.txt > all_speeds.txt
+
+          # 统计分析
+          sum=0
+          max=0
+          min=10000
+          count=0
+          speeds_list=""
+          while read s; do
+            sum=$(awk "BEGIN{print $sum+$s}")
+            if (( $(awk "BEGIN{print ($s>$max)}") )); then max=$s; fi
+            if (( $(awk "BEGIN{print ($s<$min)}") )); then min=$s; fi
+            count=$((count+1))
+            speeds_list="${speeds_list}${count}|${s}\n"
+          done < all_speeds.txt
+          avg=$(awk "BEGIN{print $sum/$count}")
+
+          # 输出到 workflow summary
+          {
+            echo "### 下载速度统计"
+            echo ""
+            echo "|编号|速度 (MB/s)|"
+            echo "|---|---|"
+            echo -e "$speeds_list"
+            echo ""
+            echo "**平均速度：$avg MB/s**"
+            echo "**最高速度：$max MB/s**"
+            echo "**最低速度：$min MB/s**"
+          } >> $GITHUB_STEP_SUMMARY
