@@ -59,10 +59,10 @@ jobs:
           yarn
           timeout 600s node index.js --count ${{env.TASK_COUNT}}
           # 下载文件并获取速度（字节/秒）
-          # url=https://apt.mobileanjian.com/debs/old/com.cyjh.mobileanjian_1.8.1_default_iphoneos-arm.deb
-          # resolve=apt.mobileanjian.com:443:114.80.179.141
-          url=https://down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com/myt.ipa
-          resolve=down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com:443:117.68.24.87
+          url=https://apt.mobileanjian.com/debs/old/com.cyjh.mobileanjian_1.8.1_default_iphoneos-arm.deb
+          resolve=apt.mobileanjian.com:443:114.80.179.141
+          # url=https://down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com/myt.ipa
+          # resolve=down-syouwan-com-1301430143.cos.ap-shanghai.myqcloud.com:443:117.68.24.87
           result=$(curl -O "$url" -w "remote_ip: %{remote_ip}\nspeed_download: %{speed_download}\n" --resolve $resolve 2>/dev/null)
           remote_ip=$(echo "$result" | grep "remote_ip" | awk '{print $2}')
           speed=$(echo "$result" | grep "speed_download" | awk '{print $2}')
