@@ -85,6 +85,12 @@ function enterBarrier(client, barrierPath, participantCount, participantValue) {
                             return reject(err);
                         if (barrierPassed)
                             return;
+                        // 检测节点减少
+                        if (lastChildren.length > 0 && children.length < lastChildren.length) {
+                            console.error(`::error::检测到屏障节点数减少（${lastChildren.length} -> ${children.length}），可能有参与者异常退出，屏障流程终止。`);
+                            client.close();
+                            process.exit(1);
+                        }
                         // 找出新增节点
                         const added = children.filter(child => !lastChildren.includes(child));
                         lastChildren = children;
